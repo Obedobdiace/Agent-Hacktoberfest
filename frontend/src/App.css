@@ -1,0 +1,251 @@
+/* App.css */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+
+:root {
+  --bg-color: rgba(20, 20, 20, 0.6);
+  --border-color: rgba(255, 255, 255, 0.1);
+  --text-color: #f1f1f1;
+  --accent-color: #6366f1;
+  --accent-hover: #4f46e5;
+  --glass-blur: blur(16px);
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  color: var(--text-color);
+  background: transparent;
+  overflow: hidden; /* For Electron widget */
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: var(--bg-color);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--border-color);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.3);
+}
+
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Header draggable for Electron */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.2);
+  border-bottom: 1px solid var(--border-color);
+  -webkit-app-region: drag; /* Makes the window draggable */
+}
+
+.header h2 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.minimize-btn {
+  -webkit-app-region: no-drag;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  color: white;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.minimize-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Logs Area */
+.logs-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.logs-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.logs-container::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+.empty-state {
+  margin: auto;
+  color: rgba(255, 255, 255, 0.4);
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.log-entry {
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  background: rgba(255, 255, 255, 0.03);
+  border-left: 3px solid transparent;
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.log-entry.info { border-left-color: #3b82f6; }
+.log-entry.warning { border-left-color: var(--warning); background: rgba(245, 158, 11, 0.05); }
+.log-entry.error { border-left-color: var(--danger); background: rgba(239, 68, 68, 0.05); }
+.log-entry.user { 
+  border-left-color: var(--accent-color); 
+  align-self: flex-end; 
+  background: rgba(99, 102, 241, 0.1); 
+}
+
+.log-level {
+  font-weight: 600;
+  margin-right: 8px;
+  opacity: 0.7;
+  font-size: 0.75rem;
+}
+
+/* Input Area */
+.input-area {
+  display: flex;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.3);
+  border-top: 1px solid var(--border-color);
+  gap: 12px;
+}
+
+.input-area input {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 16px;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.95rem;
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.input-area input:focus {
+  border-color: var(--accent-color);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btn-send {
+  background: var(--accent-color);
+  color: white;
+  border: none;
+  padding: 0 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-send:hover {
+  background: var(--accent-hover);
+}
+
+/* Modal */
+.confirmation-modal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 85%;
+  padding: 24px;
+  border-radius: 12px;
+  z-index: 100;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+  animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+}
+
+.confirmation-modal h3 {
+  color: var(--warning);
+  margin-bottom: 12px;
+}
+
+.action-details {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 12px;
+  border-radius: 6px;
+  margin: 16px 0;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+.action-details pre {
+  color: #a78bfa;
+  margin-top: 8px;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.modal-actions button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.modal-actions button:hover {
+  opacity: 0.8;
+}
+
+.btn-approve {
+  background: var(--success);
+  color: white;
+}
+
+.btn-reject {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.2) !important;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: translate(-50%, -40%) scale(0.9); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}

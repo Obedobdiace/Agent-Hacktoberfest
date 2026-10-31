@@ -1,0 +1,30 @@
+# Core dependencies
+google-genai>=1.0.0
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+
+# Vision and OCR
+mss>=9.0.0
+Pillow>=10.0.0
+easyocr>=1.7.0
+
+# Actions
+pyautogui>=0.9.54
+duckduckgo-search>=5.0.0
+
+# Database
+chromadb>=0.4.0
+
+# Development
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+mypy>=1.7.0
+ruff>=0.1.0
+
+# Type stubs
+types-Pillow>=10.0.0
+
+# Web API
+fastapi>=0.100.0
+uvicorn>=0.23.0
+websockets>=11.0.3

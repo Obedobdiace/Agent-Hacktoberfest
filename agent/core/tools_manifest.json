@@ -1,0 +1,246 @@
+[
+  {
+    "action_type": "mouse_click",
+    "description": "Clique sur une position de l'écran.",
+    "params_schema": {
+      "x": "int",
+      "y": "int",
+      "button": "string (left, right, middle)",
+      "clicks": "int"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "mouse_drag",
+    "description": "Fait un glisser-déposer.",
+    "params_schema": {
+      "start_x": "int",
+      "start_y": "int",
+      "end_x": "int",
+      "end_y": "int",
+      "duration": "float",
+      "button": "string"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "mouse_scroll",
+    "description": "Fait défiler l'écran.",
+    "params_schema": {
+      "x": "int",
+      "y": "int",
+      "clicks": "int",
+      "direction": "string (up, down)"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "mouse_move",
+    "description": "Déplace la souris sans cliquer.",
+    "params_schema": {
+      "x": "int",
+      "y": "int",
+      "duration": "float"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "keyboard_type",
+    "description": "Tape du texte.",
+    "params_schema": {
+      "text": "string",
+      "interval": "float"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "keyboard_press",
+    "description": "Appuie sur une touche ou combinaison.",
+    "params_schema": {
+      "key": "string"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "keyboard_hotkey",
+    "description": "Combinaison de touches (hotkey).",
+    "params_schema": {
+      "keys": "array of strings"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "app_open",
+    "description": "Ouvre une application.",
+    "params_schema": {
+      "app_name": "string",
+      "args": "array of strings"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "app_close",
+    "description": "Ferme une application.",
+    "params_schema": {
+      "app_name": "string",
+      "force": "boolean"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "app_focus",
+    "description": "Met le focus sur une application.",
+    "params_schema": {
+      "app_name": "string"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "app_open_and_type",
+    "description": "Ouvre une application puis tape du texte.",
+    "params_schema": {
+      "app_name": "string",
+      "text": "string"
+    },
+    "security_level": "RISKY"
+  },
+  {
+    "action_type": "web_search",
+    "description": "Effectue une recherche sur le web et génère un résumé IA des résultats.",
+    "params_schema": {
+      "query": "string (la question ou les mots-clés)"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "screen_capture",
+    "description": "Prend une capture d'écran.",
+    "params_schema": {
+      "region": "object or null"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "element_capture",
+    "description": "Prend une capture d'une région spécifique.",
+    "params_schema": {
+      "element_id": "string",
+      "bbox": "object"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "ocr_extract",
+    "description": "Extrait le texte d'une capture.",
+    "params_schema": {
+      "image_path": "string",
+      "language": "array of strings"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "ocr_search",
+    "description": "Recherche du texte dans une capture.",
+    "params_schema": {
+      "image_path": "string",
+      "search_text": "string",
+      "language": "array of strings"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "analyze_screen",
+    "description": "Analyse une capture avec l'LLM vision.",
+    "params_schema": {
+      "image_path": "string",
+      "question": "string",
+      "context": "string"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "find_element",
+    "description": "Trouve un élément spécifique sur l'écran.",
+    "params_schema": {
+      "image_path": "string",
+      "element_description": "string",
+      "context": "string"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "list_directory",
+    "description": "Liste le contenu d'un dossier (fichiers et sous-dossiers).",
+    "params_schema": {
+      "path": "string (chemin du dossier à lister)"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "create_directory",
+    "description": "Crée un nouveau dossier sur le disque.",
+    "params_schema": {
+      "path": "string (chemin ou nom du dossier)"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "move_file",
+    "description": "Déplace un fichier d'un endroit à un autre.",
+    "params_schema": {
+      "src": "string (chemin source)",
+      "dst": "string (chemin destination)"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "copy_file",
+    "description": "Copie un fichier d'un endroit à un autre.",
+    "params_schema": {
+      "src": "string (chemin source)",
+      "dst": "string (chemin destination)"
+    },
+    "security_level": "SAFE"
+  },
+  {
+    "action_type": "file_write",
+    "description": "Écrit dans un fichier.",
+    "params_schema": {
+      "path": "string",
+      "content": "string",
+      "mode": "string"
+    },
+    "security_level": "CRITICAL"
+  },
+  {
+    "action_type": "file_delete",
+    "description": "Supprime un fichier.",
+    "params_schema": {
+      "path": "string"
+    },
+    "security_level": "CRITICAL"
+  },
+  {
+    "action_type": "system_command",
+    "description": "Exécute une commande PowerShell Windows. Utile pour: 1) Luminosité: (Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, <X>). 2) Son et Médias via SendKeys: augmentation son = [char]175, diminution = [char]174, muet = [char]173, pause = [char]179, suivant = [char]176, précédent = [char]177 (via (new-object -com wscript.shell).SendKeys(...)). 3) Verrouillage PC: rundll32.exe user32.dll,LockWorkStation. 4) Vider corbeille: Clear-RecycleBin -Force -Confirm:$false.",
+    "params_schema": {
+      "command": "string (la commande système exacte à exécuter)",
+      "args": "array of strings"
+    },
+    "security_level": "CRITICAL"
+  },
+  {
+    "action_type": "ask_human",
+    "description": "Pose une question lucide à l'utilisateur humain s'il y a une ambiguïté ou besoin d'une confirmation.",
+    "params_schema": {
+      "question": "string"
+    }
+  },
+  {
+    "action_type": "task_complete",
+    "description": "Déclare que la tâche est terminée avec succès.",
+    "params_schema": {
+      "message": "string"
+    }
+  }
+]
