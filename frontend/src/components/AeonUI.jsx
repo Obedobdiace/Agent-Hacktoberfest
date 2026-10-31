@@ -5,11 +5,43 @@ import './AeonUI.css'
 const ipc = window?.require ? window.require('electron').ipcRenderer : null
 
 const STATES = {
-  idle:  { dc:'var(--teal)', lbl:'en ligne',   speed:'5.5s',  coreCol:'rgba(184,146,74,.18)' },
-  think: { dc:'var(--gold)', lbl:'réflexion',  speed:'2.2s',  coreCol:'rgba(184,146,74,.35)' },
-  act:   { dc:'#7a9eb8',     lbl:'en action',  speed:'1.4s',  coreCol:'rgba(74,158,184,.3)'  },
-  error: { dc:'var(--rose)', lbl:'erreur',     speed:'0.7s',  coreCol:'rgba(184,74,74,.3)'   },
+  idle:   { dc:'var(--teal)', lbl:'en ligne',   speed:'5.5s',  coreCol:'rgba(184,146,74,.18)' },
+  think:  { dc:'var(--gold)', lbl:'réflexion',  speed:'2.2s',  coreCol:'rgba(184,146,74,.35)' },
+  listen: { dc:'var(--teal)', lbl:'écoute',     speed:'1.1s',  coreCol:'rgba(74,140,126,.35)' },
+  act:    { dc:'#7a9eb8',     lbl:'en action',  speed:'1.4s',  coreCol:'rgba(74,158,184,.3)'  },
+  error:  { dc:'var(--rose)', lbl:'erreur',     speed:'0.7s',  coreCol:'rgba(184,74,74,.3)'   },
 };
+
+function cleanSpeech(text) {
+  return String(text || '')
+    .replace(/^\[(INFO|WARNING|ERROR|DEBUG)\]\s*/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 500)
+}
+
+function speakText(text, enabledRef, listeningRef) {
+  const synth = window.speechSynthesis
+  const clean = cleanSpeech(text)
+  if (!synth || !clean || !enabledRef.current || listeningRef.current) return
+
+  const say = () => {
+    if (!enabledRef.current || listeningRef.current) return
+    synth.cancel()
+    const utter = new SpeechSynthesisUtterance(clean)
+    utter.lang = 'fr-FR'
+    utter.rate = 1
+    const voice = synth.getVoices().find((item) => item.lang.toLowerCase().startsWith('fr'))
+    if (voice) utter.voice = voice
+    synth.speak(utter)
+  }
+
+  if (synth.getVoices().length === 0) {
+    synth.addEventListener('voiceschanged', say, { once: true })
+  } else {
+    say()
+  }
+}
 
 const chs = 'abcdefghijklmnopqrstuvwxyz0123456789·—_/∷';
 
@@ -32,8 +64,16 @@ function AeonUI() {
   const [logs, setLogs] = useState([])
   const [instruction, setInstruction] = useState('')
   const [typing, setTyping] = useState(false)
+  const [listening, setListening] = useState(false)
+  const [heard, setHeard] = useState('')
+  const [micLevel, setMicLevel] = useState(0)
+  const [voiceOut, setVoiceOut] = useState(() => localStorage.getItem('hf-voice') !== 'off')
   const [subtitle, setSubtitle] = useState('_')
   const ws = useRef(null)
+  const voiceOutRef = useRef(localStorage.getItem('hf-voice') !== 'off')
+  const listeningRef = useRef(false)
+  const sendTextRef = useRef(() => {})
+  const listenTimer = useRef(null)
   const messagesEndRef = useRef(null)
   const arcCanvasRef = useRef(null)
   const btxtRef = useRef(null)
@@ -61,12 +101,14 @@ function AeonUI() {
       document.documentElement.style.setProperty('--breath', st.speed);
     };
 
-    if (typing) {
+    if (listening) {
+      setState('listen');
+    } else if (typing) {
       setState('think');
     } else {
       setState('idle');
     }
-  }, [typing])
+  }, [typing, listening])
 
   useEffect(() => {
     let reconnectTimeout;
@@ -85,9 +127,45 @@ function AeonUI() {
           if (data.type === 'log') {
             setTyping(false)
             setLogs(prev => [...prev, { role: 'agent', content: `[${data.level}] ${data.message}` }])
+            speakText(data.message, voiceOutRef, listeningRef)
           } else if (data.type === 'confirmation_request') {
             setTyping(false)
-            setLogs(prev => [...prev, { role: 'agent', content: `[ACTION REQUISE] ${data.action_type}: ${JSON.stringify(data.params)}` }])
+            const text = data.message || `J'ai besoin de ta confirmation pour ${data.action_type}.`
+            setLogs(prev => [...prev, { role: 'agent', content: text }])
+            speakText(text, voiceOutRef, listeningRef)
+          } else if (data.type === 'voice_level') {
+            setMicLevel(Math.max(0, Math.min(100, Number(data.level) || 0)))
+          } else if (data.type === 'voice_partial') {
+            const partial = (data.text || '').trim()
+            if (partial) {
+              setHeard(partial)
+              setInstruction(partial)
+            }
+          } else if (data.type === 'voice_status') {
+            if (data.state === 'listening') {
+              listeningRef.current = true
+              setListening(true)
+            } else {
+              clearTimeout(listenTimer.current)
+              listeningRef.current = false
+              setListening(false)
+              if (data.state === 'error' && data.message) {
+                setLogs(prev => [...prev, { role: 'agent', content: data.message }])
+              }
+            }
+          } else if (data.type === 'voice_result') {
+            clearTimeout(listenTimer.current)
+            listeningRef.current = false
+            setListening(false)
+            const said = (data.text || '').trim()
+            if (said) {
+              setHeard(said)
+              setInstruction(said)
+              sendTextRef.current(said)
+            } else {
+              setMicLevel(0)
+              setLogs(prev => [...prev, { role: 'agent', content: data.hint || "Je n'ai rien entendu. Parle près du micro de l'ordinateur, le casque n'est pas branché." }])
+            }
           }
         } catch (e) {
           console.error('Erreur WS', e)
@@ -223,20 +301,64 @@ function AeonUI() {
     }
   }, [])
 
-  const sendInstruction = (e) => {
-    e.preventDefault()
-    if (!instruction.trim()) return
-    
-    setLogs(prev => [...prev, { role: 'user', content: instruction }])
-    
+  const sendText = (raw) => {
+    const value = raw.trim()
+    if (!value) return
+
+    setLogs(prev => [...prev, { role: 'user', content: value }])
+
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'instruction', instruction }))
+      window.speechSynthesis?.cancel()
+      ws.current.send(JSON.stringify({ type: 'instruction', instruction: value }))
       setTyping(true)
     } else {
       setLogs(prev => [...prev, { role: 'agent', content: 'Erreur: Non connecté au serveur.' }])
     }
-    
+
     setInstruction('')
+  }
+  sendTextRef.current = sendText
+
+  const sendInstruction = (e) => {
+    e.preventDefault()
+    sendText(instruction)
+  }
+
+  const toggleVoiceOut = () => {
+    setVoiceOut((current) => {
+      const next = !current
+      voiceOutRef.current = next
+      localStorage.setItem('hf-voice', next ? 'on' : 'off')
+      if (!next) window.speechSynthesis?.cancel()
+      return next
+    })
+  }
+
+  const toggleListen = () => {
+    if (!ws.current || ws.current.readyState !== WebSocket.OPEN) {
+      setLogs(prev => [...prev, { role: 'agent', content: 'Erreur: Non connecté au serveur.' }])
+      return
+    }
+    if (listeningRef.current) {
+      ws.current.send(JSON.stringify({ type: 'voice_stop' }))
+      listeningRef.current = false
+      setListening(false)
+      return
+    }
+    window.speechSynthesis?.cancel()
+    setHeard('')
+    setInstruction('')
+    setMicLevel(0)
+    listeningRef.current = true
+    setListening(true)
+    clearTimeout(listenTimer.current)
+    listenTimer.current = setTimeout(() => {
+      if (!listeningRef.current) return
+      listeningRef.current = false
+      setListening(false)
+      setLogs(prev => [...prev, { role: 'agent', content: "L'écoute n'a pas abouti. Relance le serveur Python, puis réessaie." }])
+    }, 90000)
+    ws.current.send(JSON.stringify({ type: 'voice_start' }))
   }
 
   return (
@@ -334,21 +456,41 @@ function AeonUI() {
 
           {/* ── Input ── */}
           <div id="input-zone">
-            <form id="iw" onSubmit={sendInstruction}>
+            {(listening || heard) && (
+              <div id="heard">
+                <span>vous dites</span>
+                <strong>{heard || (micLevel > 8 ? 'Je t’entends, continue…' : '…')}</strong>
+                <div id="mic-meter" aria-hidden="true">
+                  <div style={{ width: `${micLevel}%` }} />
+                </div>
+              </div>
+            )}
+            <form id="iw" className={listening ? 'listening' : ''} onSubmit={sendInstruction}>
+              <button
+                id="mic"
+                type="button"
+                className={listening ? 'listening' : ''}
+                title={listening ? 'Arrêter l\'écoute' : 'Parler'}
+                onClick={toggleListen}
+              >
+                {listening ? '◉' : '◎'}
+              </button>
               <input 
                 id="inp" 
                 type="text" 
                 value={instruction}
                 onChange={(e) => setInstruction(e.target.value)}
-                placeholder="Dis quelque chose à Hacktoberfest…" 
+                placeholder={listening ? 'Je t’écoute…' : 'Dis quelque chose à Hacktoberfest…'} 
                 autoComplete="off" 
                 spellCheck="false" 
               />
               <button id="sb" type="submit">↑</button>
             </form>
             <div id="hint">
-              <span>Entrée pour envoyer</span>
-              <span className="k">↵</span>
+              <span>{listening ? 'Parle, puis marque une pause' : 'Micro pour parler · Entrée pour envoyer'}</span>
+              <button id="voice-toggle" type="button" className={voiceOut ? 'on' : ''} onClick={toggleVoiceOut}>
+                {voiceOut ? 'voix activée' : 'voix coupée'}
+              </button>
             </div>
           </div>
         </div>

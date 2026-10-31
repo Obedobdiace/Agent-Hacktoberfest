@@ -20,6 +20,7 @@ from agent.core.memory import MemoryManager, MemoryEntry, MemoryType
 from agent.core.planner import TaskPlanner, TaskStatus
 from agent.core.security import Action, SecurityGuard, SecurityLevel
 from agent.obsidian.logger import ObsidianLogger
+from agent.core.llm import GemmaModel, use_gemma
 from agent.vision.analyzer import VisionAnalyzer
 from agent.vision.capture import ScreenCapture
 from agent.core.fast_parser import FastParser
@@ -58,13 +59,17 @@ class Orchestrator:
         self.filesystem_controller = FileSystemController()
         self.fast_parser = FastParser()
 
-        # Initialiser l'analyseur vision si la clé API est disponible
-        api_key = os.getenv("GOOGLE_API_KEY")
-        if api_key:
-            self.vision_analyzer = VisionAnalyzer(api_key)
+        # Gemma via l'API Google. Gemini reste disponible si LLM_PROVIDER=gemini.
+        if use_gemma():
+            self.vision_analyzer = GemmaModel()
+            logger.info("Cerveau Gemma: %s", self.vision_analyzer.model)
         else:
-            self.vision_analyzer = None
-            logger.warning("GOOGLE_API_KEY non trouvée, l'analyse vision sera désactivée")
+            api_key = os.getenv("GOOGLE_API_KEY")
+            if api_key:
+                self.vision_analyzer = VisionAnalyzer(api_key)
+            else:
+                self.vision_analyzer = None
+                logger.warning("GOOGLE_API_KEY non trouvée, l'analyse vision sera désactivée")
 
         # Initialiser le logger Obsidian si le chemin est disponible
         vault_path = os.getenv("OBSIDIAN_VAULT_PATH")
@@ -195,13 +200,39 @@ class Orchestrator:
             if self.callbacks:
                 await self.callbacks.log_message("INFO", text)
 
-        # --- FAST-TRACK: Interception des commandes système rapides ---
+        # --- FAST-TRACK: commandes système, puis ouverture locale d'applications ---
         fast_cmd = self.fast_parser.parse(task.description)
         if fast_cmd:
-            await say(f"Je m'en occupe tout de suite.")
+            await say("Je m'en occupe tout de suite.")
             await self._execute_action("system_command", {"command": fast_cmd})
             await say("C'est fait !")
             return
+
+        app_action = self.fast_parser.parse_app_action(task.description)
+        if app_action:
+            kind, app_query = app_action
+            if kind == "open_maybe" and not self.app_controller.can_open(app_query):
+                app_action = None
+            else:
+                if kind == "open_maybe":
+                    kind = "open"
+                await say("Je m'en occupe tout de suite.")
+                label = self.app_controller.resolve_name(app_query) or app_query
+                if kind == "open":
+                    opened = self.app_controller.open(app_query)
+                    await say(
+                        f"{label} est ouvert."
+                        if opened
+                        else f"Je ne trouve pas « {app_query} » parmi les applications installées."
+                    )
+                else:
+                    closed = self.app_controller.close(app_query)
+                    await say(
+                        f"{label} est fermé."
+                        if closed
+                        else f"Je n'ai pas pu fermer « {app_query} »."
+                    )
+                return
         # --- FIN FAST-TRACK ---
 
         max_iterations = 20

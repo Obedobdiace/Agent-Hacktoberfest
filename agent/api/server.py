@@ -18,6 +18,23 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Hacktoberfest API")
 
+
+@app.on_event("startup")
+async def warm_installed_apps() -> None:
+    """Indexe les applications du PC avant la première demande d'ouverture."""
+    import threading
+
+    from agent.actions.app_catalog import warm_catalog
+    from agent.voice.listener import warm_engine
+
+    threading.Thread(target=warm_catalog, name="app-catalog", daemon=True).start()
+    threading.Thread(target=warm_engine, name="voice-engine", daemon=True).start()
+
+    from agent.core.llm import GemmaModel, use_gemma
+
+    if use_gemma():
+        print(GemmaModel().describe_status(), flush=True)
+
 # Serve static files from the frontend directory
 frontend_dir = Path(__file__).parent.parent.parent / "frontend" / "dist"
 if frontend_dir.exists():
@@ -134,7 +151,34 @@ async def chat_router(user_message: str) -> dict:
     """
     Envoie le message à Gemini Flash pour décider si c'est
     une conversation ou une commande. Fallback local si API indisponible.
+
+    Ouvrir ou fermer une application ne dépend pas du modèle : le catalogue
+    local des applications installées s'en charge.
     """
+    from agent.core.fast_parser import FastParser
+
+    app_action = FastParser().parse_app_action(user_message)
+    if app_action and app_action[0] in {"open", "close"}:
+        return {"type": "command", "task": user_message, "ack": "Compris, je m'en occupe."}
+
+    from agent.core.llm import GemmaModel, extract_json, redact, use_gemma
+
+    if use_gemma():
+        try:
+            model = GemmaModel()
+            raw = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: model.complete(
+                    SYSTEM_PROMPT,
+                    conversation_history[-8:],
+                    user_message,
+                ),
+            )
+            return extract_json(raw)
+        except Exception as exc:
+            logger.warning("Gemma injoignable (%s) — secours local.", redact(str(exc)))
+            return _local_classify(user_message)
+
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         return _local_classify(user_message)
@@ -324,6 +368,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 if pending_confirmation and not pending_confirmation.done():
                     pending_confirmation.set_result(message["approved"])
 
+            elif message["type"] == "voice_start":
+                asyncio.create_task(_listen_voice(websocket))
+
+            elif message["type"] == "voice_stop":
+                from agent.voice.listener import cancel_listen
+
+                cancel_listen()
+
             elif message["type"] == "stop":
                 if orchestrator_instance:
                     orchestrator_instance.stop()
@@ -338,6 +390,64 @@ async def websocket_endpoint(websocket: WebSocket):
 # ─────────────────────────────────────────────────────────────
 #  MESSAGE HANDLER — conversation ou commande
 # ─────────────────────────────────────────────────────────────
+_voice_lock = asyncio.Lock()
+
+
+async def _listen_voice(websocket: WebSocket) -> None:
+    """Écoute une phrase au micro et la renvoie à l'interface."""
+    if _voice_lock.locked():
+        await websocket.send_text(json.dumps({"type": "voice_status", "state": "busy"}))
+        return
+
+    from agent.voice.listener import listen_once
+
+    loop = asyncio.get_running_loop()
+
+    def _on_partial(text: str) -> None:
+        if not text:
+            return
+        payload = json.dumps({"type": "voice_partial", "text": text})
+        asyncio.run_coroutine_threadsafe(websocket.send_text(payload), loop)
+
+    levels: list[int] = []
+
+    def _on_level(level: int) -> None:
+        levels.append(level)
+        payload = json.dumps({"type": "voice_level", "level": level})
+        asyncio.run_coroutine_threadsafe(websocket.send_text(payload), loop)
+
+    async with _voice_lock:
+        await websocket.send_text(json.dumps({"type": "voice_status", "state": "listening"}))
+        try:
+            text = await loop.run_in_executor(None, lambda: listen_once(_on_partial, _on_level))
+        except Exception as exc:
+            logger.error("Écoute vocale: %s", exc)
+            await websocket.send_text(json.dumps({
+                "type": "voice_status",
+                "state": "error",
+                "message": "Je n'arrive pas à utiliser le microphone. Vérifie qu'il est branché et autorisé pour les applications de bureau.",
+            }))
+            return
+
+        if text is None:
+            await websocket.send_text(json.dumps({"type": "voice_status", "state": "idle"}))
+            return
+
+        peak = max(levels) if levels else 0
+        hint = ""
+        if not text and peak < 8:
+            hint = (
+                "Je ne reçois aucun son. Le micro utilisé est celui de l'ordinateur : "
+                "le casque n'est pas branché. Parle près de l'écran."
+            )
+        await websocket.send_text(json.dumps({
+            "type": "voice_result",
+            "text": text,
+            "level": peak,
+            "hint": hint,
+        }))
+
+
 async def handle_message(instruction: str):
     """Route le message : conversation naturelle OU exécution de tâche."""
     _add_to_history("user", instruction)

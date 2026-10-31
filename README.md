@@ -1,72 +1,109 @@
 # Hacktoberfest
 
-## 📌 Vue d'ensemble du Projet
-Hacktoberfest est un agent d'assistance de bureau autonome et intelligent. Il est conçu pour interagir avec le système d'exploitation (Windows) à l'aide d'instructions en langage naturel, en orchestrant la vision par ordinateur, la compréhension LLM (Gemini) et les actions directes du système (souris, clavier, fichiers, terminaux).
+Agent de bureau pour Windows. On lui parle en français, à l’écrit ou au micro, et il agit sur l’ordinateur : ouvrir une application, régler le volume, verrouiller la session, prendre une capture, écrire une note. Les actions sensibles attendent une confirmation.
 
----
+L’interface est une fenêtre Electron. Le serveur Python tourne en local (`127.0.0.1`) et ne sort du poste que pour appeler le modèle.
 
-## 🏗️ Architecture Actuelle
+## Fonctionnalités
 
-Le projet est divisé en deux parties principales : un backend en Python et un frontend sous React/Electron.
+- **Applications installées.** L’agent lit le menu Démarrer, le registre et les chemins d’applications, puis ouvre ou ferme le programme demandé. Ce n’est pas une liste figée.
+- **Commandes directes.** Luminosité, volume, lecture multimédia, verrouillage, corbeille et capture d’écran sont traités sans appel au modèle.
+- **Voix.** La dictée utilise le reconnaisseur Windows en français. Les réponses sont lues par la synthèse vocale du navigateur. Une barre indique si le micro reçoit du son.
+- **Modèle.** Le cerveau par défaut est Gemma (`gemma-4-26b-a4b-it`) via l’API Google. Une clé Gemini reste utilisable pour la vision.
+- **Confirmation.** Suppression, commandes système et chemins protégés (`C:\Windows`, clés SSH, etc.) ne partent pas sans accord.
+- **Notes Obsidian.** Les sessions, tâches et recherches peuvent être écrites dans un coffre configuré.
 
-### 1. Backend (Python)
-Gère l'intelligence, la communication avec le système, et le traitement des requêtes.
-*   **`agent/api/`** : Serveur FastAPI (`server.py`) exposant des WebSockets pour une communication temps réel avec le frontend.
-*   **`agent/core/`** : Le cerveau de l'agent.
-    *   `orchestrator.py` : Coordonne la boucle de raisonnement et d'action (ReAct).
-    *   `fast_parser.py` : Analyseur rapide pour extraire les intentions et applications (évite des appels LLM inutiles).
-    *   `planner.py` : Planifie les séquences d'actions complexes.
-    *   `memory.py` : Gestion de la mémoire à l'aide de ChromaDB (base de données vectorielle).
-    *   `security.py` : Système de "Human-in-the-loop" pour demander confirmation à l'utilisateur avant d'exécuter des actions critiques.
-*   **`agent/actions/`** : Outils d'interaction concrets.
-    *   `apps.py`, `filesystem.py`, `keyboard.py`, `mouse.py`, `search.py` : Exécutent les clics, les frappes, gèrent les fenêtres et manipulent les fichiers (PowerShell / PyAutoGUI).
-*   **`agent/vision/`** : Traitement visuel de l'écran à l'aide de `mss` (capture) et `easyocr` (reconnaissance de texte) / Pillow.
-*   **`agent/obsidian/`** : Module spécifique pour interagir avec l'application de prise de notes Obsidian.
+## Prérequis
 
-### 2. Frontend (React + Electron)
-Interface utilisateur (Overlay) de type "gliding desktop".
-*   **`frontend/`** : Projet Vite avec React et Electron.
-*   **`src/`** : Composants React pour l'interface de Hacktoberfest, conçue pour être minimaliste et fluide.
-*   Permet d'afficher l'état de l'agent, le retour visuel des tâches en cours, et l'interface de chat.
+- Windows 10 ou 11
+- Python 3.11
+- Node.js 20 ou plus récent
+- Un micro, si vous utilisez la voix (le micro intégré du PC, pas un casque débranché)
+- Une clé API Google pour Gemma
 
----
+## Installation
 
-## 🚀 Ce qu'il y a déjà (Fonctionnalités clés)
-1.  **Exécution d'Actions Autonomes** : Déplacement de la souris, frappe au clavier, et navigation dans le système de fichiers.
-2.  **Fast-Track & Parsing** : Compréhension rapide des commandes simples ("ouvre spotify", "écris dans Obsidian") via le `fast_parser.py`.
-3.  **Vision par Ordinateur** : Capacité à "voir" l'écran pour cliquer sur les bons éléments.
-4.  **Interface Native (Electron)** : Un overlay élégant qui communique de manière fluide avec le backend via WebSockets.
-5.  **Sécurité Intégrée** : L'agent demande une autorisation avant les commandes potentiellement dangereuses.
-6.  **Mémoire (RAG)** : Utilisation de ChromaDB pour se souvenir des contextes passés et de la configuration du système.
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
 
----
+cd frontend
+npm install
+```
 
-## 🛠️ Pistes d'Amélioration (Ce que tu peux améliorer)
+## Configuration
 
-Voici les axes principaux d'amélioration pour rendre l'agent encore plus performant et stable :
+```bash
+copy .env.example .env
+```
 
-### 1. Gestion des Quotas et Fallback LLM (Priorité Haute)
-*   **Problème observé** : Les logs récents montrent une erreur `429 RESOURCE_EXHAUSTED` (Quota Gemini dépassé). Le système bascule sur un fallback local qui plante avec un problème de parsing JSON.
-*   **Amélioration** : 
-    *   Améliorer le mécanisme de **fallback vers un LLM local** (ex: Ollama, Llama.cpp) pour qu'il soit 100% fonctionnel et gère exactement les mêmes formats JSON de réponse que Gemini.
-    *   Mettre en place un système de cache ou de limitation de requêtes pour économiser le quota de l'API.
+Renseignez `.env` :
 
-### 2. Robustesse de la Vision et de l'OCR
-*   **Amélioration** : Actuellement, `easyocr` peut être lent ou imprécis selon la résolution. Tu pourrais intégrer la vision de Gemini 2.0 (si les quotas le permettent) pour détecter directement les coordonnées des boutons, ou utiliser un modèle plus léger comme YOLOv8 entraîné pour les UI (User Interfaces).
+| Variable | Rôle |
+| --- | --- |
+| `LLM_PROVIDER` | `gemma` (défaut) ou `gemini` |
+| `GEMMA_API_KEY` | Clé de l’API Gemma |
+| `GEMMA_MODEL` | `gemma-4-26b-a4b-it` |
+| `GOOGLE_API_KEY` | Clé Gemini, utilisée pour la vision si elle est présente |
+| `OBSIDIAN_VAULT_PATH` | Chemin du coffre Obsidian |
+| `READONLY_MODE` | `true` pour refuser toute action |
+| `LOG_LEVEL` | `DEBUG`, `INFO`, `WARNING` ou `ERROR` |
 
-### 3. Tests Automatisés (Dossier `tests/`)
-*   **Amélioration** : Le dossier `tests/` existe. Il serait judicieux de créer des tests unitaires robustes pour `fast_parser.py` et `orchestrator.py` afin de s'assurer que les modifications futures ne cassent pas le parsing des commandes.
+`.env` ne doit pas être commité.
 
-### 4. Extensions d'Applications (Plugins)
-*   **Amélioration** : Tu as déjà un module `agent/obsidian/`. Tu pourrais standardiser une architecture de "Plugins" pour d'autres applications courantes (ex: VSCode, Spotify, Chrome). Cela permettrait au `fast_parser` de rediriger directement vers la bonne logique d'application sans réfléchir.
+## Lancer
 
-### 5. Compatibilité Multi-OS / Gestion des erreurs PowerShell
-*   **Amélioration** : Les logs indiquent une erreur PowerShell (`Start-Process 'spotify'`). Il faudrait améliorer la détection des chemins d'applications sous Windows (ex: lire le registre Windows ou utiliser des alias globaux) pour que l'ouverture d'apps ne plante pas.
+Deux terminaux, depuis la racine du projet.
 
-### 6. Frontend : Optimisation Electron
-*   **Amélioration** : S'assurer que le mode "Overlay" (fond transparent, click-through) fonctionne parfaitement sous Windows sans bloquer les interactions de l'utilisateur avec ses autres applications.
+```bash
+venv\Scripts\activate
+python -m agent.api.server
+```
 
----
+```bash
+cd frontend
+npm run dev:electron
+```
 
-## 📝 Comment utiliser ce fichier ?
-Ce fichier est ton plan de route. Tu peux cocher les cases au fur et à mesure que tu améliores Hacktoberfest ! N'hésite pas à me demander de t'aider sur un de ces points (par exemple : "Aide-moi à corriger l'erreur de Fallback Local" ou "Ajoute un plugin pour Spotify").
+Le serveur écoute `http://127.0.0.1:8000`. L’interface se connecte en WebSocket. Le bouton micro démarre une écoute ; le texte reconnu apparaît sous « vous dites », puis part comme un message.
+
+## Exemples
+
+- « Ouvre Spotify »
+- « Ferme le bloc-notes »
+- « Baisse le volume »
+- « Verrouille la session »
+- « Prends une capture d’écran »
+
+Une demande d’ouverture ou de fermeture d’application est exécutée tout de suite. Le modèle n’intervient que lorsque la phrase n’est pas une commande reconnue.
+
+## Architecture
+
+```
+agent/
+  api/            serveur FastAPI et WebSocket
+  core/           orchestration, commandes rapides, sécurité, mémoire
+  actions/        applications, souris, clavier, fichiers
+  voice/          reconnaissance Windows (français)
+  vision/         capture d’écran et analyse
+  obsidian/       notes dans le coffre
+frontend/         interface React + Electron
+```
+
+Les commandes simples passent par `fast_parser`. Le catalogue d’applications résout le nom, puis lance le raccourci ou l’exécutable. Le reste est envoyé à Gemma, qui renvoie une action au format JSON.
+
+## Sécurité
+
+L’agent contrôle la souris, le clavier et les applications du poste. Gardez `READONLY_MODE=true` tant que vous explorez le code. Les opérations critiques demandent une validation dans l’interface. Les chemins système et les secrets (`.env`, `.ssh`) sont protégés.
+
+## Tests
+
+```bash
+pytest tests/ -v
+ruff check agent/actions/app_catalog.py agent/core/llm.py agent/voice/listener.py
+```
+
+## Licence
+
+[MIT](LICENSE) — Copyright 2026 Obedobdiace
